@@ -17,7 +17,10 @@ $_['text_raypay'] = '<a target="_blank" href="https://raypay.ir/"><img src="view
 $_['text_edit'] = 'ویرایش درگاه پرداخت رای پی';
 $_['entry_title'] = 'عنوان';
 $_['entry_user_id'] = 'شناسه کاربری';
-$_['entry_acceptor_code'] = 'کد پذیرنده';
+$_['entry_marketing_id'] = 'شناسه کسب و کار';
+$_['entry_sandbox'] = 'فعالسازی SandBox';
+$_['entry_sandbox_yes'] = 'بله';
+$_['entry_sandbox_no'] = 'خیر';
 $_['entry_order_status'] = 'وضعیت سفارش پس از پرداخت موفق';
 $_['entry_success_massage'] = 'پیام پرداخت موفق';
 $_['entry_success_massage_default'] = 'پرداخت شما ناموفق بوده است. لطفا مجددا تلاش نمایید یا در صورت بروز اشکال با مدیر سایت تماس بگیرید.';
@@ -28,4 +31,4 @@ $_['entry_status'] = 'وضعیت';
 $_['entry_sort_order'] = 'ترتیب';
 $_['error_permission'] = 'شما اجازه ویرایش ماژول رای پی رای ندارید !';
 $_['error_user_id'] = 'شناسه کاربری مورد نیاز است';
-$_['error_acceptor_code'] = 'کد پذیرنده مورد نیاز است';
+$_['error_marketing_id'] = 'شناسه کسب و کار مورد نیاز است';

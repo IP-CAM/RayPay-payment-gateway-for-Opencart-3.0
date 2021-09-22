@@ -57,11 +57,12 @@ class ControllerExtensionPaymentRayPay extends Controller
         $data['order_id'] = $this->session->data['order_id'];
 
         $user_id = $this->config->get('payment_raypay_user_id');
-        $acceptor_code = $this->config->get('payment_raypay_acceptor_code');
+        $marketing_id = $this->config->get('payment_raypay_marketing_id');
+        $sandbox = !($this->config->get('payment_raypay_sandbox') == 'no');
         $amount = $this->correctAmount($order_info);
 
         $desc = $this->language->get('text_order_no') . $order_info['order_id'];
-        $redirectUrl = $this->url->link('extension/payment/raypay/callback', '', true) .'&order_id='. $order_id .'&';
+        $redirectUrl = $this->url->link('extension/payment/raypay/callback', '', true) .'&order_id='. $order_id;
         $invoice_id             = round(microtime(true) * 1000);
 
         if (empty($amount)) {
@@ -72,21 +73,22 @@ class ControllerExtensionPaymentRayPay extends Controller
         $mail = $order_info['email'];
         $phone = $order_info['telephone'];
 
-        $data = array(
+        $raypay_data = array(
             'amount'       => strval($amount),
             'invoiceID'    => strval($invoice_id),
             'userID'       => $user_id,
             'redirectUrl'  => $redirectUrl,
             'factorNumber' => strval($order_id),
-            'acceptorCode' => $acceptor_code,
+            'marketingID' => $marketing_id,
             'email'        => $mail,
             'mobile'       => $phone,
             'fullName'     => $name,
-            'comment'      => $desc
+            'comment'      => $desc,
+            'enableSandBox'=> $sandbox
         );
 
-        $ch = curl_init('https://api.raypay.ir/raypay/api/v1/Payment/getPaymentTokenWithUserID');
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        $ch = curl_init('https://api.raypay.ir/raypay/api/v1/Payment/pay');
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($raypay_data));
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
         curl_setopt($ch, CURLOPT_HTTPHEADER, array(
             'Content-Type: application/json'
@@ -99,8 +101,6 @@ class ControllerExtensionPaymentRayPay extends Controller
         $http_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
-       
-
         if ($http_status != 200 || empty($result) || empty($result->Data)) {
             // Set Order status id to 10 (Failed) and add a history.
             $msg         = sprintf('خطا هنگام ایجاد تراکنش. کد خطا: %s - پیام خطا: %s', $http_status, $result->Message);
@@ -110,12 +110,11 @@ class ControllerExtensionPaymentRayPay extends Controller
             // Add a specific history to the order with order status 1 (Pending);
             $model->addOrderHistory($order_id, 1, $this->generateString($invoice_id), false);
             $model->addOrderHistory($order_id, 1, 'در حال هدایت به درگاه پرداخت رای پی', false);
-            $access_token = $result->Data->Accesstoken;
-            $terminal_id  = $result->Data->TerminalID;
+            $token = $result->Data;
+            $link='https://my.raypay.ir/ipg?token=' . $token;
 
-            $json['action'] = 'https://mabna.shaparak.ir:8080/Pay';
-            $json['token'] = $access_token;
-            $json['terminal_id'] = $terminal_id;
+            $data['action'] = $link;
+            $json['success'] = $data['action'];
         }
         $this->response->addHeader('Content-Type: application/json');
 		$this->response->setOutput(json_encode($json));
@@ -126,10 +125,9 @@ class ControllerExtensionPaymentRayPay extends Controller
      */
     public function callback()
     {
-        if ($this->session->data['payment_method']['code'] == 'raypay') {
+//        if ($this->session->data['payment_method']['code'] == 'raypay') {
           
             $order_id = $_GET['order_id'];
-            $invoice_id = $_GET['?invoiceID'];
 
             $this->load->language('extension/payment/raypay');
 
@@ -162,18 +160,17 @@ class ControllerExtensionPaymentRayPay extends Controller
                 $order_info = $model->getOrder($order_id);
 
                 if (!$order_info) {
-                    $comment = $this->raypay_get_failed_message($invoice_id);
+                    $comment = 'سفارش پیدا نشد.';
                     // Set Order status id to 10 (Failed) and add a history.
                     $model->addOrderHistory($order_id, 10, $comment, true);
                     $data['peyment_result'] = $comment;
                     $data['button_continue'] = $this->language->get('button_view_cart');
                     $data['continue'] = $this->url->link('checkout/cart');
                 } else {
-                    $verify_data = array('order_id' => $order_id);
-                    $url = 'https://api.raypay.ir/raypay/api/v1/Payment/checkInvoice?pInvoiceID=' . $invoice_id;
+                    $url = 'https://api.raypay.ir/raypay/api/v1/Payment/verify';
                         $ch = curl_init();
                         curl_setopt($ch, CURLOPT_URL, $url);
-                        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($verify_data));
+                        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($_POST));
                         curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
                         curl_setopt($ch, CURLOPT_HTTPHEADER, array(
                             'Content-Type: application/json',
@@ -192,16 +189,17 @@ class ControllerExtensionPaymentRayPay extends Controller
                             $data['button_continue'] = $this->language->get('button_view_cart');
                             $data['continue'] = $this->url->link('checkout/cart');
                         } else {
-                            $state           = $result->Data->State;
+                            $state           = $result->Data->Status;
                             $verify_order_id = $result->Data->FactorNumber;
+                            $verify_invoice_id = $result->Data->InvoiceID;
                             $verify_amount   = $result->Data->Amount;
 
 
                             //get result id from database
-                            $sql = $this->db->query('SELECT `comment`  FROM ' . DB_PREFIX . 'order_history WHERE order_id = ' . $order_id . ' AND `comment` LIKE "' . $this->generateString($invoice_id) . '"');
+                            $sql = $this->db->query('SELECT `comment`  FROM ' . DB_PREFIX . 'order_history WHERE order_id = ' . $order_id . ' AND `comment` LIKE "' . $this->generateString($verify_invoice_id) . '"');
 
                             if (empty($verify_order_id) || empty($verify_amount) || $state !== 1) {
-                                $comment = $this->raypay_get_failed_message($invoice_id);
+                                $comment = $this->raypay_get_failed_message($verify_invoice_id);
                                 // Set Order status id to 10 (Failed) and add a history.
                                 $model->addOrderHistory($order_id, 10, $comment, true);
                                 $data['peyment_result'] = $comment;
@@ -209,8 +207,7 @@ class ControllerExtensionPaymentRayPay extends Controller
                                 $data['continue'] = $this->url->link('checkout/cart');
 
                             } else { // Transaction is successful.
-
-                                $comment = $this->raypay_get_success_message($invoice_id);
+                                $comment = $this->raypay_get_success_message($verify_invoice_id);
                                 $config_successful_payment_status = $this->config->get('payment_raypay_order_status_id');
                                 // Set Order status id to the configured status id and add a history.
                                 $model->addOrderHistory($verify_order_id, $config_successful_payment_status, $comment, true);
@@ -230,8 +227,7 @@ class ControllerExtensionPaymentRayPay extends Controller
             $data['footer'] = $this->load->controller('common/footer');
             $data['header'] = $this->load->controller('common/header');
             $this->response->setOutput($this->load->view('extension/payment/raypay_confirm', $data));
-
-        }
+//    }
     }
 
     /**
@@ -253,7 +249,7 @@ class ControllerExtensionPaymentRayPay extends Controller
      */
     public function raypay_get_success_message($invoice_id)
     {
-        return str_replace(["invoice_id}"], [$invoice_id], $this->config->get('payment_raypay_success_massage'));
+        return str_replace(["{invoice_id}"], [$invoice_id], $this->config->get('payment_raypay_success_massage'));
     }
 
     /**

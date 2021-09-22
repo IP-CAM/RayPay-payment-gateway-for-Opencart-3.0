@@ -48,10 +48,10 @@ class ControllerExtensionPaymentRayPay extends Controller
         } else {
             $data['error_user_id'] = '';
         }
-        if (isset($this->error['acceptor_code'])) {
-            $data['error_acceptor_code'] = $this->error['acceptor_code'];
+        if (isset($this->error['marketing_id'])) {
+            $data['error_marketing_id'] = $this->error['marketing_id'];
         } else {
-            $data['error_acceptor_code'] = '';
+            $data['error_marketing_id'] = '';
         }
 
         $data['breadcrumbs'] = array();
@@ -81,10 +81,16 @@ class ControllerExtensionPaymentRayPay extends Controller
             $data['payment_raypay_user_id'] = $this->config->get('payment_raypay_user_id');
         }
 
-        if (isset($this->request->post['payment_raypay_acceptor_code'])) {
-            $data['payment_raypay_acceptor_code'] = $this->request->post['payment_raypay_acceptor_code'];
+        if (isset($this->request->post['payment_raypay_marketing_id'])) {
+            $data['payment_raypay_marketing_id'] = $this->request->post['payment_raypay_marketing_id'];
         } else {
-            $data['payment_raypay_acceptor_code'] = $this->config->get('payment_raypay_acceptor_code');
+            $data['payment_raypay_marketing_id'] = $this->config->get('payment_raypay_marketing_id');
+        }
+
+        if (isset($this->request->post['payment_raypay_sandbox'])) {
+            $data['payment_raypay_sandbox'] = $this->request->post['payment_raypay_sandbox'];
+        } else {
+            $data['payment_raypay_sandbox'] = $this->config->get('payment_raypay_sandbox');
         }
 
 
@@ -141,8 +147,8 @@ class ControllerExtensionPaymentRayPay extends Controller
         if (!$this->request->post['payment_raypay_user_id']) {
             $this->error['user_id'] = $this->language->get('error_user_id');
         }
-        if (!$this->request->post['payment_raypay_acceptor_code']) {
-            $this->error['acceptor_code'] = $this->language->get('error_acceptor_code');
+        if (!$this->request->post['payment_raypay_marketing_id']) {
+            $this->error['marketing_id'] = $this->language->get('error_marketing_id');
         }
 
         return !$this->error;
